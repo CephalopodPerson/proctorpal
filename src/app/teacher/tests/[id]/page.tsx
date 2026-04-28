@@ -194,6 +194,12 @@ export default function TestEdit() {
         />
         <div className="flex gap-2">
           <Link
+            href={`/teacher/tests/${id}/preview`}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-slate-400"
+          >
+            Preview →
+          </Link>
+          <Link
             href={`/teacher/tests/${id}/monitor`}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-slate-400"
           >
