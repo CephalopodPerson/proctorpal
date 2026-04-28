@@ -1,7 +1,7 @@
 "use client";
 
-// Class detail: roster (with CSV template + import), and assignments panel
-// showing every test published to this class with quick links to monitor/grade.
+// Class detail: assignments panel + roster (with CSV template, CSV import,
+// AND manual one-at-a-time entry).
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
@@ -35,6 +35,12 @@ export default function ClassDetail() {
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [importMessage, setImportMessage] = useState<string | null>(null);
 
+  // Manual-entry form state
+  const [newId, setNewId] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+
   const refresh = useCallback(async () => {
     const sb = getSupabaseBrowser();
     const [{ data: cls }, { data: rows }, { data: assigns }] = await Promise.all([
@@ -49,7 +55,6 @@ export default function ClassDetail() {
     setClassName(cls?.name ?? "");
     setStudents((rows as Student[]) ?? []);
 
-    // Per-assignment session counts
     const out: AssignmentRow[] = [];
     for (const a of (assigns as any[]) ?? []) {
       const { count: total } = await sb
@@ -78,16 +83,53 @@ export default function ClassDetail() {
     refresh();
   }, [refresh]);
 
+  async function addOne(e: React.FormEvent) {
+    e.preventDefault();
+    setAddError(null);
+    const sid = normalizeStudentId(newId);
+    const name = newName.trim();
+    if (!sid || !name) {
+      setAddError("Student ID and name are required.");
+      return;
+    }
+    const sb = getSupabaseBrowser();
+    const { error } = await sb.from("students").insert({
+      class_id: classId,
+      student_id: sid,
+      display_name: name,
+      email: newEmail.trim() || null,
+    });
+    if (error) {
+      setAddError(error.message.includes("duplicate") ? "That student ID is already on this roster." : error.message);
+      return;
+    }
+    setNewId("");
+    setNewName("");
+    setNewEmail("");
+    refresh();
+  }
+
+  async function removeStudent(id: string) {
+    if (!confirm("Remove this student from the class? Their existing test sessions stay intact.")) return;
+    const sb = getSupabaseBrowser();
+    await sb.from("students").delete().eq("id", id);
+    refresh();
+  }
+
   function downloadTemplate() {
     const csv =
       "student_id,display_name,email\n" +
       "12345,Maria Lopez,maria@example.com\n" +
       "12346,Tom Chen,\n";
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    download("roster-template.csv", csv, "text/csv");
+  }
+
+  function download(filename: string, content: string, mime: string) {
+    const blob = new Blob([content], { type: mime + ";charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "roster-template.csv";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -128,18 +170,23 @@ export default function ClassDetail() {
 
   async function toggleAssignment(a: AssignmentRow) {
     const sb = getSupabaseBrowser();
-    await sb
-      .from("test_assignments")
-      .update({ is_open: !a.is_open })
-      .eq("id", a.id);
+    await sb.from("test_assignments").update({ is_open: !a.is_open }).eq("id", a.id);
     refresh();
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{className || "Class"}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{className || "Class"}</h1>
+        <Link
+          href={"/teacher/classes/" + classId + "/gradebook"}
+          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-slate-400"
+        >
+          Gradebook &rarr;
+        </Link>
+      </div>
 
-      {/* Assignments panel */}
+      {/* Assignments */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="font-semibold">Tests assigned to this class</h2>
         {assignments.length === 0 ? (
@@ -187,10 +234,40 @@ export default function ClassDetail() {
         )}
       </div>
 
-      {/* Roster import */}
+      {/* Manual add */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <h2 className="font-semibold">Add student</h2>
+        <form onSubmit={addOne} className="mt-3 grid gap-2 sm:grid-cols-[1fr_2fr_2fr_auto]">
+          <input
+            value={newId}
+            onChange={(e) => setNewId(e.target.value)}
+            placeholder="Student ID"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono"
+          />
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Display name"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          />
+          <input
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            placeholder="Email (optional)"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            type="email"
+          />
+          <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+            Add
+          </button>
+        </form>
+        {addError && <p className="mt-2 text-sm text-violation">{addError}</p>}
+      </div>
+
+      {/* CSV import */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="font-semibold">Import roster (CSV)</h2>
+          <h2 className="font-semibold">Bulk import (CSV)</h2>
           <button
             onClick={downloadTemplate}
             className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium hover:border-slate-400"
@@ -221,9 +298,19 @@ export default function ClassDetail() {
         </div>
         <ul className="divide-y divide-slate-100">
           {students.map((s) => (
-            <li key={s.id} className="flex items-center justify-between p-3 text-sm">
-              <span>{s.display_name}</span>
+            <li key={s.id} className="flex items-center justify-between p-3 text-sm gap-2">
+              <div className="flex-1">
+                <span>{s.display_name}</span>
+                {s.email && <span className="ml-2 text-xs text-slate-400">{s.email}</span>}
+              </div>
               <span className="font-mono text-slate-500">{s.student_id}</span>
+              <button
+                onClick={() => removeStudent(s.id)}
+                className="text-xs text-slate-400 hover:text-violation"
+                title="Remove from class"
+              >
+                Remove
+              </button>
             </li>
           ))}
           {students.length === 0 && (

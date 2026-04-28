@@ -19,6 +19,7 @@ import { formatDuration } from "@/lib/utils";
 import { isInFullscreen } from "@/lib/proctor/platform";
 import { flushViolations } from "@/lib/proctor/violations";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { useT } from "@/lib/i18n";
 import type { AnswerPayload, Question } from "@/types";
 
 interface SessionData {
@@ -268,16 +269,17 @@ function Header({
   position: number;
   total: number;
 }) {
+  const t = useT();
   const low = secondsLeft < 60;
   return (
     <div className="flex items-center justify-between">
       <div>
-        <div className="text-xs uppercase tracking-wide text-slate-500">Test</div>
+        <div className="text-xs uppercase tracking-wide text-slate-500">{t("runner.test")}</div>
         <div className="text-lg font-semibold">{title}</div>
       </div>
       <div className="text-right">
         <div className="text-xs uppercase tracking-wide text-slate-500">
-          Question {position}/{total}
+          {t("runner.questionOf", { n: position, total })}
         </div>
         <div className={`font-mono text-2xl ${low ? "text-violation" : "text-slate-900"}`}>
           {formatDuration(secondsLeft)}
@@ -294,15 +296,16 @@ function StartGate({
   requireFullscreen: boolean;
   onArm: () => void;
 }) {
+  const t = useT();
   const [ready, setReady] = useState(!requireFullscreen);
   return (
     <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
-      <h2 className="text-xl font-semibold">Before you start</h2>
+      <h2 className="text-xl font-semibold">{t("runner.beforeYouStart")}</h2>
       <ul className="mt-3 space-y-1 text-sm text-slate-700 list-disc pl-5">
-        <li>Close every other tab and app.</li>
-        <li>Put your phone face-down on the desk.</li>
-        <li>Do not switch tabs, copy, or paste.</li>
-        <li>If anything happens, raise your hand.</li>
+        <li>{t("runner.rule1")}</li>
+        <li>{t("runner.rule2")}</li>
+        <li>{t("runner.rule3")}</li>
+        <li>{t("runner.rule4")}</li>
       </ul>
       {requireFullscreen && (
         <div className="mt-5">
@@ -312,7 +315,7 @@ function StartGate({
             }}
             className="w-full rounded-lg border border-slate-300 bg-slate-50 py-3 font-semibold"
           >
-            Enter fullscreen to begin
+            {t("runner.enterFullscreen")}
           </EnterFullscreenButton>
         </div>
       )}
@@ -321,7 +324,7 @@ function StartGate({
         onClick={onArm}
         className="mt-4 w-full rounded-lg bg-slate-900 py-3 text-white font-semibold disabled:opacity-50"
       >
-        Start test
+        {t("runner.startTest")}
       </button>
     </div>
   );
@@ -375,6 +378,7 @@ function Nav({
   onSubmit: () => void;
   submitting: boolean;
 }) {
+  const t = useT();
   const isLast = idx === total - 1;
   return (
     <div className="mt-4 space-y-3">
@@ -406,7 +410,7 @@ function Nav({
           disabled={idx === 0}
           className="rounded-lg border border-slate-300 bg-white px-4 py-2 disabled:opacity-50"
         >
-          ← Previous
+          ← {t("common.previous")}
         </button>
         {isLast ? (
           <button
@@ -414,14 +418,14 @@ function Nav({
             disabled={submitting}
             className="rounded-lg bg-slate-900 px-6 py-2 text-white font-semibold disabled:opacity-60"
           >
-            {submitting ? "Submitting…" : "Submit test"}
+            {submitting ? t("runner.submitting") : t("runner.submit")}
           </button>
         ) : (
           <button
             onClick={onNext}
             className="rounded-lg bg-slate-900 px-4 py-2 text-white font-semibold"
           >
-            Next →
+            {t("common.next")} →
           </button>
         )}
       </div>
@@ -430,9 +434,10 @@ function Nav({
 }
 
 function Loading() {
+  const t = useT();
   return (
     <div className="flex min-h-screen items-center justify-center text-slate-600">
-      Loading test…
+      {t("common.loading")}
     </div>
   );
 }
