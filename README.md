@@ -17,8 +17,8 @@ npm install
 #    - Go to https://supabase.com → new project (free tier is fine)
 #    - Settings → API: copy URL, anon key, service_role key
 cp .env.example .env.local
-#    Fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-#    SUPABASE_SERVICE_ROLE_KEY, SESSION_SIGNING_SECRET (random 32+ chars).
+#    Fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+#    SUPABASE_SECRET_KEY, SESSION_SIGNING_SECRET (random 32+ chars).
 
 # 3. Apply the schema
 #    Easiest path: open Supabase SQL editor, paste supabase/migrations/0001_initial.sql, run.

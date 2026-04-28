@@ -3,7 +3,7 @@
 // getSupabaseServer()  — bound to the logged-in teacher's cookies. Use in
 //                        Server Components and Route Handlers when acting AS
 //                        the teacher.
-// getSupabaseAdmin()   — uses the service role key. Bypasses RLS. Use ONLY
+// getSupabaseAdmin()   — uses the secret key. Bypasses RLS. Use ONLY
 //                        in route handlers and never expose to the client.
 //                        Required for student-facing operations (creating
 //                        sessions, saving answers) since students aren't auth'd.
@@ -15,7 +15,7 @@ export function getSupabaseServer() {
   const cookieStore = cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
         get(name: string) {
@@ -46,7 +46,7 @@ export function getSupabaseAdmin() {
   if (!_admin) {
     _admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      process.env.SUPABASE_SECRET_KEY!,
       { auth: { persistSession: false, autoRefreshToken: false } }
     );
   }
