@@ -1,12 +1,10 @@
 "use client";
 
-// Per-class gradebook. Students x tests grid, plus a per-student average
-// across all published grades. CSV export for plugging into your gradebook.
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { useT } from "@/lib/i18n";
 
 interface Student {
   id: string;
@@ -20,11 +18,6 @@ interface TestCol {
   assignment_id: string;
 }
 
-// Score state per (student, test):
-//   - "none": no session for this student on this test
-//   - "in_progress" | "paused" | "pending_admit"
-//   - "submitted_ungraded": submitted but no published grade yet
-//   - { score, possible }: published grade
 type Cell =
   | { kind: "none" }
   | { kind: "status"; status: string }
@@ -32,6 +25,7 @@ type Cell =
   | { kind: "graded"; score: number; possible: number };
 
 export default function Gradebook() {
+  const t = useT();
   const params = useParams<{ id: string }>();
   const classId = params.id;
   const [className, setClassName] = useState("");
@@ -70,20 +64,19 @@ export default function Gradebook() {
     })) as TestCol[];
     setTests(testList);
 
-    // For each assignment, pull all sessions + grades and build cells.
     const c: Record<string, Cell> = {};
     for (const stud of studList) {
-      for (const t of testList) {
-        c[cellKey(stud.id, t.test_id)] = { kind: "none" };
+      for (const ttest of testList) {
+        c[cellKey(stud.id, ttest.test_id)] = { kind: "none" };
       }
     }
-    for (const t of testList) {
+    for (const ttest of testList) {
       const { data: sessions } = await sb
         .from("sessions")
         .select("id, status, student_id, grades(total_score, total_possible)")
-        .eq("assignment_id", t.assignment_id);
+        .eq("assignment_id", ttest.assignment_id);
       for (const s of (sessions as any[]) ?? []) {
-        const k = cellKey(s.student_id, t.test_id);
+        const k = cellKey(s.student_id, ttest.test_id);
         const grade = s.grades?.[0];
         if (grade) {
           c[k] = {
@@ -112,8 +105,8 @@ export default function Gradebook() {
       let totalScore = 0;
       let totalPossible = 0;
       let n = 0;
-      for (const t of tests) {
-        const c = cells[cellKey(s.id, t.test_id)];
+      for (const ttest of tests) {
+        const c = cells[cellKey(s.id, ttest.test_id)];
         if (c?.kind === "graded") {
           totalScore += c.score;
           totalPossible += c.possible;
@@ -126,21 +119,16 @@ export default function Gradebook() {
   }, [students, tests, cells]);
 
   function exportCsv() {
-    const headers = ["student_id", "display_name", ...tests.map((t) => t.test_title), "average_pct"];
+    const headers = ["student_id", "display_name", ...tests.map((tc) => tc.test_title), "average_pct"];
     const lines = [headers.join(",")];
     for (const s of students) {
       const row: string[] = [s.student_id, csvEscape(s.display_name)];
-      for (const t of tests) {
-        const c = cells[cellKey(s.id, t.test_id)];
-        if (c?.kind === "graded") {
-          row.push(c.score + "/" + c.possible);
-        } else if (c?.kind === "submitted_ungraded") {
-          row.push("ungraded");
-        } else if (c?.kind === "status") {
-          row.push(c.status);
-        } else {
-          row.push("");
-        }
+      for (const ttest of tests) {
+        const c = cells[cellKey(s.id, ttest.test_id)];
+        if (c?.kind === "graded") row.push(c.score + "/" + c.possible);
+        else if (c?.kind === "submitted_ungraded") row.push("ungraded");
+        else if (c?.kind === "status") row.push(c.status);
+        else row.push("");
       }
       const avg = averages[s.id];
       row.push(avg ? avg.pct.toFixed(1) : "");
@@ -155,7 +143,7 @@ export default function Gradebook() {
     URL.revokeObjectURL(url);
   }
 
-  if (loading) return <div className="p-6 text-slate-500">Loading gradebook...</div>;
+  if (loading) return <div className="p-6 text-slate-500">{t("common.loading")}</div>;
 
   return (
     <div className="space-y-4">
@@ -165,36 +153,36 @@ export default function Gradebook() {
             href={"/teacher/classes/" + classId}
             className="text-sm text-slate-500 hover:underline"
           >
-            &larr; Back to class
+            &larr; {t("gradebook.backToClass")}
           </Link>
-          <h1 className="text-2xl font-bold mt-1">{className} - Gradebook</h1>
+          <h1 className="text-2xl font-bold mt-1">{className} - {t("gradebook.title")}</h1>
         </div>
         <button
           onClick={exportCsv}
           className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-slate-400"
         >
-          Export CSV
+          {t("gradebook.exportCsv")}
         </button>
       </div>
 
       {tests.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500">
-          No tests assigned to this class yet.
+          {t("gradebook.noTests")}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
           <table className="min-w-full text-sm">
             <thead className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="sticky left-0 bg-white p-3 z-10">Student</th>
-                {tests.map((t) => (
-                  <th key={t.test_id} className="p-3 whitespace-nowrap">
-                    <Link href={"/teacher/tests/" + t.test_id + "/grade"} className="hover:underline">
-                      {t.test_title}
+                <th className="sticky left-0 bg-white p-3 z-10">{t("gradebook.student")}</th>
+                {tests.map((tc) => (
+                  <th key={tc.test_id} className="p-3 whitespace-nowrap">
+                    <Link href={"/teacher/tests/" + tc.test_id + "/grade"} className="hover:underline">
+                      {tc.test_title}
                     </Link>
                   </th>
                 ))}
-                <th className="p-3 whitespace-nowrap text-right">Avg %</th>
+                <th className="p-3 whitespace-nowrap text-right">{t("gradebook.avgPct")}</th>
               </tr>
             </thead>
             <tbody>
@@ -204,10 +192,10 @@ export default function Gradebook() {
                     <div className="font-medium">{s.display_name}</div>
                     <div className="font-mono text-xs text-slate-500">{s.student_id}</div>
                   </td>
-                  {tests.map((t) => {
-                    const c = cells[cellKey(s.id, t.test_id)];
+                  {tests.map((tc) => {
+                    const c = cells[cellKey(s.id, tc.test_id)];
                     return (
-                      <td key={t.test_id} className="p-3 whitespace-nowrap">
+                      <td key={tc.test_id} className="p-3 whitespace-nowrap">
                         <CellView c={c} />
                       </td>
                     );
@@ -220,7 +208,7 @@ export default function Gradebook() {
               {students.length === 0 && (
                 <tr>
                   <td colSpan={tests.length + 2} className="p-6 text-center text-slate-500">
-                    No students in this class.
+                    {t("gradebook.noStudents")}
                   </td>
                 </tr>
               )}
@@ -229,14 +217,13 @@ export default function Gradebook() {
         </div>
       )}
 
-      <p className="text-xs text-slate-500">
-        Cells: <span className="font-mono">12/15</span> = published score, <span className="text-warn">ungraded</span> = submitted but not published, <span className="text-slate-500">in progress / paused</span> = active session, &mdash; = no session yet.
-      </p>
+      <p className="text-xs text-slate-500">{t("gradebook.legend")}</p>
     </div>
   );
 }
 
 function CellView({ c }: { c: Cell | undefined }) {
+  const t = useT();
   if (!c || c.kind === "none") return <span className="text-slate-300">&mdash;</span>;
   if (c.kind === "graded") {
     const pct = c.possible > 0 ? (c.score / c.possible) * 100 : 0;
@@ -247,10 +234,10 @@ function CellView({ c }: { c: Cell | undefined }) {
       </span>
     );
   }
-  if (c.kind === "submitted_ungraded") {
-    return <span className="text-warn text-xs">ungraded</span>;
-  }
-  return <span className="text-xs text-slate-500">{c.status.replace("_", " ")}</span>;
+  if (c.kind === "submitted_ungraded") return <span className="text-warn text-xs">{t("gradebook.ungraded")}</span>;
+  // Status: try a localized version, fall back to raw.
+  const statusKey = ("monitor.status." + c.status) as Parameters<typeof t>[0];
+  return <span className="text-xs text-slate-500">{t(statusKey)}</span>;
 }
 
 function csvEscape(s: string): string {

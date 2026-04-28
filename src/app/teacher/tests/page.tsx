@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { useT } from "@/lib/i18n";
 
 interface TestRow {
   id: string;
@@ -14,6 +15,7 @@ interface TestRow {
 }
 
 export default function TestsList() {
+  const t = useT();
   const router = useRouter();
   const [tests, setTests] = useState<TestRow[]>([]);
   const [title, setTitle] = useState("");
@@ -73,47 +75,22 @@ export default function TestsList() {
               correct: ["b"],
               multi_select: false,
             },
-            {
-              type: "true_false",
-              prompt: "The Earth is round.",
-              points: 1,
-              correct: true,
-            },
-            {
-              type: "short_answer",
-              prompt: "What is H2O?",
-              points: 1,
-              accepts: [{ value: "water", mode: "ci" }],
-            },
-            {
-              type: "long_answer",
-              prompt: "Describe the water cycle.",
-              points: 5,
-              rubric: "Mention evaporation, condensation, precipitation.",
-            },
+            { type: "true_false", prompt: "The Earth is round.", points: 1, correct: true },
+            { type: "short_answer", prompt: "What is H2O?", points: 1, accepts: [{ value: "water", mode: "ci" }] },
+            { type: "long_answer", prompt: "Describe the water cycle.", points: 5, rubric: "Mention evaporation, condensation, precipitation." },
             {
               type: "matching",
-              prompt: "Match the items to their categories.",
+              prompt: "Match items to their categories.",
               points: 2,
-              left: [
-                { id: "l1", text: "Apple" },
-                { id: "l2", text: "Carrot" },
-              ],
-              right: [
-                { id: "r1", text: "Fruit" },
-                { id: "r2", text: "Vegetable" },
-              ],
+              left: [{ id: "l1", text: "Apple" }, { id: "l2", text: "Carrot" }],
+              right: [{ id: "r1", text: "Fruit" }, { id: "r2", text: "Vegetable" }],
               pairs: [["l1", "r1"], ["l2", "r2"]],
             },
             {
               type: "ordering",
-              prompt: "Put these in chronological order.",
+              prompt: "Put these in order.",
               points: 2,
-              items: [
-                { id: "i1", text: "Sunrise" },
-                { id: "i2", text: "Noon" },
-                { id: "i3", text: "Sunset" },
-              ],
+              items: [{ id: "i1", text: "Sunrise" }, { id: "i2", text: "Noon" }, { id: "i3", text: "Sunset" }],
               correct_order: ["i1", "i2", "i3"],
             },
           ],
@@ -144,7 +121,7 @@ export default function TestsList() {
   }
 
   async function handleFile(file: File) {
-    setImportMessage("Reading file...");
+    setImportMessage(t("common.loading"));
     const text = await file.text();
     let testJson: unknown;
     if (file.name.toLowerCase().endsWith(".csv")) {
@@ -153,11 +130,11 @@ export default function TestsList() {
       try {
         testJson = JSON.parse(text);
       } catch {
-        setImportMessage("Invalid JSON file.");
+        setImportMessage(t("tests.invalidJson"));
         return;
       }
     }
-    setImportMessage("Importing...");
+    setImportMessage(t("tests.importing"));
     const r = await fetch("/api/teacher/tests/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -165,17 +142,16 @@ export default function TestsList() {
     });
     const j = await r.json();
     if (!r.ok) {
-      setImportMessage("Import failed: " + (j.error ?? "unknown"));
+      setImportMessage(t("tests.importFailed", { msg: j.error ?? "unknown" }));
       return;
     }
-    setImportMessage("Imported. Redirecting to editor...");
+    setImportMessage(t("tests.imported"));
     router.push("/teacher/tests/" + j.testId);
   }
 
   function csvToTest(csv: string) {
     const parsed = Papa.parse(csv, { header: true, skipEmptyLines: true });
     const rows = parsed.data as any[];
-    // Group by section name (column "section").
     const sectionsMap = new Map<string, any[]>();
     for (const r of rows) {
       const sec = (r.section ?? "Section 1").trim();
@@ -187,11 +163,7 @@ export default function TestsList() {
       const questions = secRows.map((r: any) => csvRowToQuestion(r));
       sections.push({ title: secName, draw_count: null, questions });
     }
-    return {
-      title: "Imported test",
-      duration_minutes: 30,
-      sections,
-    };
+    return { title: "Imported test", duration_minutes: 30, sections };
   }
 
   function csvRowToQuestion(r: any) {
@@ -201,7 +173,6 @@ export default function TestsList() {
     const image_url = r.image_url || null;
     const youtube_id = r.youtube_id || null;
     const base = { type, prompt, points, image_url, youtube_id };
-
     if (type === "multiple_choice") {
       const opts: { id: string; text: string }[] = [];
       const letters = ["a", "b", "c", "d", "e", "f"];
@@ -212,50 +183,50 @@ export default function TestsList() {
       const correct = String(r.correct ?? "").trim().toLowerCase();
       return { ...base, options: opts, correct: correct ? [correct] : [], multi_select: false };
     }
-    if (type === "true_false") {
-      return { ...base, correct: String(r.correct ?? "").trim().toLowerCase() === "true" };
-    }
+    if (type === "true_false") return { ...base, correct: String(r.correct ?? "").trim().toLowerCase() === "true" };
     if (type === "short_answer") {
       const v = String(r.option_a ?? r.correct ?? "").trim();
       return { ...base, accepts: v ? [{ value: v, mode: "ci" as const }] : [] };
     }
-    if (type === "long_answer") {
-      return { ...base, rubric: "" };
-    }
+    if (type === "long_answer") return { ...base, rubric: "" };
     return base;
+  }
+
+  function statusLabel(s: string) {
+    if (s === "draft") return t("tests.statusDraft");
+    if (s === "published") return t("tests.statusPublished");
+    if (s === "archived") return t("tests.statusArchived");
+    return s;
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Tests</h1>
+      <h1 className="text-2xl font-bold">{t("tests.title")}</h1>
 
       <form onSubmit={create} className="flex gap-2">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2"
-          placeholder="New test title"
+          placeholder={t("tests.newPlaceholder")}
         />
         <button
           disabled={creating}
           className="rounded-lg bg-slate-900 px-4 py-2 text-white font-semibold disabled:opacity-60"
         >
-          New test
+          {t("tests.newTest")}
         </button>
       </form>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="font-semibold">Import existing test</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Upload a JSON file (full structure, all 6 question types) or a CSV
-          (one question per row, MC/TF/short/long only).
-        </p>
+        <h2 className="font-semibold">{t("tests.import")}</h2>
+        <p className="mt-1 text-sm text-slate-600">{t("tests.importBlurb")}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             onClick={() => fileRef.current?.click()}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium hover:border-slate-400"
           >
-            Choose file...
+            {t("tests.chooseFile")}
           </button>
           <input
             ref={fileRef}
@@ -271,29 +242,29 @@ export default function TestsList() {
             onClick={downloadJsonTemplate}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium hover:border-slate-400"
           >
-            Download JSON template
+            {t("tests.downloadJson")}
           </button>
           <button
             onClick={downloadCsvTemplate}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium hover:border-slate-400"
           >
-            Download CSV template
+            {t("tests.downloadCsv")}
           </button>
         </div>
         {importMessage && <p className="mt-3 text-sm text-slate-700">{importMessage}</p>}
       </div>
 
       <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
-        {tests.map((t) => (
-          <li key={t.id} className="flex items-center justify-between p-4">
-            <Link href={"/teacher/tests/" + t.id} className="font-medium hover:underline">
-              {t.title}
+        {tests.map((tt) => (
+          <li key={tt.id} className="flex items-center justify-between p-4">
+            <Link href={"/teacher/tests/" + tt.id} className="font-medium hover:underline">
+              {tt.title}
             </Link>
-            <span className="text-xs uppercase tracking-wide text-slate-500">{t.status}</span>
+            <span className="text-xs uppercase tracking-wide text-slate-500">{statusLabel(tt.status)}</span>
           </li>
         ))}
         {tests.length === 0 && (
-          <li className="p-6 text-center text-sm text-slate-500">No tests yet.</li>
+          <li className="p-6 text-center text-sm text-slate-500">{t("tests.empty")}</li>
         )}
       </ul>
     </div>

@@ -1,14 +1,11 @@
 "use client";
 
-// Test editor: settings, sections, questions (per section), publish.
-// Single-page editor — auto-saves on each field blur to keep the round-trip
-// model simple. This is the heaviest screen in the app.
-
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { QuestionEditor, type DraftQuestion } from "@/components/teacher/QuestionEditor";
+import { useT } from "@/lib/i18n";
 import type { QuestionType } from "@/types";
 
 interface Test {
@@ -38,7 +35,7 @@ interface Section {
 }
 
 export default function TestEdit() {
-  const router = useRouter();
+  const t = useT();
   const params = useParams<{ id: string }>();
   const id = params.id;
   const sb = getSupabaseBrowser();
@@ -50,7 +47,7 @@ export default function TestEdit() {
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const [{ data: t }, { data: secList }, { data: cls }] = await Promise.all([
+    const [{ data: tst }, { data: secList }, { data: cls }] = await Promise.all([
       sb.from("tests").select("*").eq("id", id).single(),
       sb
         .from("test_sections")
@@ -59,9 +56,9 @@ export default function TestEdit() {
         .order("position"),
       sb.from("classes").select("id,name").order("name"),
     ]);
-    setTest(t as Test);
+    setTest(tst as Test);
     setClasses((cls as any[]) ?? []);
-    if (cls && cls.length && !classId) setClassId(cls[0].id);
+    if (cls && cls.length && !classId) setClassId((cls as any[])[0].id);
     const built = ((secList as any[]) ?? []).map((s) => {
       const bank = s.question_banks?.[0];
       const questions = (bank?.questions ?? [])
@@ -105,11 +102,11 @@ export default function TestEdit() {
     const pos = sections.length;
     const { data: section } = await sb
       .from("test_sections")
-      .insert({ test_id: id, title: `Section ${pos + 1}`, position: pos })
+      .insert({ test_id: id, title: "Section " + (pos + 1), position: pos })
       .select("*")
       .single();
     if (!section) return;
-    await sb.from("question_banks").insert({ section_id: section.id });
+    await sb.from("question_banks").insert({ section_id: (section as { id: string }).id });
     refresh();
   }
 
@@ -119,7 +116,7 @@ export default function TestEdit() {
   }
 
   async function removeSection(s: Section) {
-    if (!confirm("Delete this section and all its questions?")) return;
+    if (!confirm(t("editor.confirmDeleteSection"))) return;
     await sb.from("test_sections").delete().eq("id", s.id);
     refresh();
   }
@@ -157,7 +154,7 @@ export default function TestEdit() {
 
   async function deleteQuestion(q: DraftQuestion) {
     if (!q.id) return;
-    if (!confirm("Delete this question?")) return;
+    if (!confirm(t("editor.confirmDeleteQuestion"))) return;
     await sb.from("questions").delete().eq("id", q.id);
     refresh();
   }
@@ -165,10 +162,10 @@ export default function TestEdit() {
   async function publish() {
     setPublishMessage(null);
     if (!classId) {
-      setPublishMessage("Pick a class first.");
+      setPublishMessage(t("editor.pickClass"));
       return;
     }
-    const r = await fetch(`/api/teacher/tests/${id}/publish`, {
+    const r = await fetch("/api/teacher/tests/" + id + "/publish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ classId }),
@@ -178,11 +175,11 @@ export default function TestEdit() {
       setPublishMessage(j.error ?? "Could not publish");
       return;
     }
-    setPublishMessage(`Published. Access code: ${j.accessCode}`);
+    setPublishMessage(t("editor.publishedCode", { code: j.accessCode }));
     refresh();
   }
 
-  if (!test) return <div>Loading…</div>;
+  if (!test) return <div>{t("common.loading")}</div>;
 
   return (
     <div className="space-y-6">
@@ -194,48 +191,48 @@ export default function TestEdit() {
         />
         <div className="flex gap-2">
           <Link
-            href={`/teacher/tests/${id}/preview`}
+            href={"/teacher/tests/" + id + "/preview"}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-slate-400"
           >
-            Preview →
+            {t("editor.preview")} →
           </Link>
           <Link
-            href={`/teacher/tests/${id}/monitor`}
+            href={"/teacher/tests/" + id + "/monitor"}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-slate-400"
           >
-            Live monitor →
+            {t("editor.liveMonitor")} →
           </Link>
           <Link
-            href={`/teacher/tests/${id}/grade`}
+            href={"/teacher/tests/" + id + "/grade"}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-slate-400"
           >
-            Grade →
+            {t("editor.grade")} →
           </Link>
         </div>
       </div>
 
       {/* Basics */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="font-semibold">Basics</h2>
+        <h2 className="font-semibold">{t("editor.basics")}</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <NumField
-            label="Duration (minutes)"
+            label={t("editor.duration")}
             value={Math.floor(test.duration_seconds / 60)}
             onChange={(v) => patchTest({ duration_seconds: v * 60 })}
           />
           <SelectField
-            label="Results visibility"
+            label={t("editor.resultsVisibility")}
             value={test.results_visibility}
             onChange={(v) => patchTest({ results_visibility: v as Test["results_visibility"] })}
             options={[
-              { v: "after_publish", label: "After I publish them" },
-              { v: "immediate", label: "Immediately on submit" },
-              { v: "after_close", label: "After test closes" },
+              { v: "after_publish", label: t("editor.resultsAfterPublish") },
+              { v: "immediate", label: t("editor.resultsImmediate") },
+              { v: "after_close", label: t("editor.resultsAfterClose") },
             ]}
           />
           <div className="flex items-end">
             <Toggle
-              label="Shuffle question order per student"
+              label={t("editor.shuffleQuestions")}
               v={test.shuffle_questions}
               onChange={(v) => patchTest({ shuffle_questions: v })}
             />
@@ -247,17 +244,13 @@ export default function TestEdit() {
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-semibold">Proctoring</h2>
-            <p className="text-xs text-slate-500">
-              Toggle individual rules below, or pick a preset. Use{" "}
-              <span className="font-semibold">Practice mode</span> to QA the test
-              without fullscreen, focus, or paste blocking getting in your way.
-            </p>
+            <h2 className="font-semibold">{t("editor.proctoring")}</h2>
+            <p className="text-xs text-slate-500">{t("editor.proctoringHint")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <PresetButton
-              label="Practice mode"
-              hint="Everything off — for testing"
+              label={t("editor.preset.practice")}
+              hint={t("editor.preset.practiceHint")}
               onClick={() =>
                 patchTest({
                   require_fullscreen: false,
@@ -269,8 +262,8 @@ export default function TestEdit() {
               }
             />
             <PresetButton
-              label="Standard"
-              hint="Recommended classroom defaults"
+              label={t("editor.preset.standard")}
+              hint={t("editor.preset.standardHint")}
               onClick={() =>
                 patchTest({
                   require_fullscreen: true,
@@ -282,8 +275,8 @@ export default function TestEdit() {
               }
             />
             <PresetButton
-              label="Strict"
-              hint="High-stakes / final exam"
+              label={t("editor.preset.strict")}
+              hint={t("editor.preset.strictHint")}
               onClick={() =>
                 patchTest({
                   require_fullscreen: true,
@@ -299,32 +292,32 @@ export default function TestEdit() {
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <ToggleRow
-            label="Require fullscreen"
-            description="Test won't start until the student enters fullscreen. Pause on exit. iPads must use PWA mode instead."
+            label={t("editor.rule.fullscreen")}
+            description={t("editor.rule.fullscreenHint")}
             v={test.require_fullscreen}
             onChange={(v) => patchTest({ require_fullscreen: v })}
           />
           <ToggleRow
-            label="Block copy / paste"
-            description="Prevents copy, cut, paste, and the right-click menu inside the test."
+            label={t("editor.rule.copyPaste")}
+            description={t("editor.rule.copyPasteHint")}
             v={test.block_copy_paste}
             onChange={(v) => patchTest({ block_copy_paste: v })}
           />
           <ToggleRow
-            label="Detect tab / focus loss"
-            description="Pause the session when the student switches tabs, minimizes, or loses window focus."
+            label={t("editor.rule.focus")}
+            description={t("editor.rule.focusHint")}
             v={test.detect_focus_loss}
             onChange={(v) => patchTest({ detect_focus_loss: v })}
           />
           <ToggleRow
-            label="On-screen keyboard for tablets"
-            description="Replaces the OS keyboard on touch devices to suppress autocomplete and clipboard suggestions."
+            label={t("editor.rule.virtualKeyboard")}
+            description={t("editor.rule.virtualKeyboardHint")}
             v={test.force_virtual_keyboard_on_touch}
             onChange={(v) => patchTest({ force_virtual_keyboard_on_touch: v })}
           />
           <ToggleRow
-            label="Teacher admit"
-            description="Each student waits in a holding room until you click Admit on the live monitor."
+            label={t("editor.rule.admit")}
+            description={t("editor.rule.admitHint")}
             v={test.require_teacher_admit}
             onChange={(v) => patchTest({ require_teacher_admit: v })}
           />
@@ -344,10 +337,7 @@ export default function TestEdit() {
               setSections((arr) =>
                 arr.map((sx) =>
                   sx.id === s.id
-                    ? {
-                        ...sx,
-                        questions: sx.questions.map((q) => (q.id === qid ? next : q)),
-                      }
+                    ? { ...sx, questions: sx.questions.map((q) => (q.id === qid ? next : q)) }
                     : sx
                 )
               );
@@ -360,13 +350,13 @@ export default function TestEdit() {
           onClick={addSection}
           className="w-full rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600 hover:border-slate-400"
         >
-          + Add section
+          {t("editor.addSection")}
         </button>
       </div>
 
       {/* Publish */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="font-semibold">Publish to class</h2>
+        <h2 className="font-semibold">{t("editor.publishToClass")}</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           <select
             value={classId}
@@ -374,16 +364,14 @@ export default function TestEdit() {
             className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
           >
             {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
           <button
             onClick={publish}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
           >
-            Publish
+            {t("common.publish")}
           </button>
         </div>
         {publishMessage && <p className="mt-3 text-sm">{publishMessage}</p>}
@@ -407,6 +395,7 @@ function SectionBlock({
   onChangeQuestion: (qid: string, next: DraftQuestion) => void;
   onDeleteQuestion: (q: DraftQuestion) => void;
 }) {
+  const t = useT();
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex items-center gap-2">
@@ -416,24 +405,24 @@ function SectionBlock({
           className="flex-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-1 font-semibold"
         />
         <label className="text-xs text-slate-600">
-          Draw
+          {t("editor.draw")}
           <input
             type="number"
             value={s.draw_count ?? ""}
             onChange={(e) => onPatch({ draw_count: e.target.value ? Number(e.target.value) : null })}
             className="ml-2 w-16 rounded-md border border-slate-200 bg-white px-2 py-1"
-            placeholder="all"
+            placeholder={t("editor.drawAll")}
           />
-          <span className="ml-1">of {s.questions.length}</span>
+          <span className="ml-1">{t("editor.drawOf", { n: s.questions.length })}</span>
         </label>
         <button onClick={onDelete} className="text-xs text-violation hover:underline">
-          Delete section
+          {t("editor.deleteSection")}
         </button>
       </div>
       <textarea
         value={s.instructions ?? ""}
         onChange={(e) => onPatch({ instructions: e.target.value })}
-        placeholder="Section instructions (optional)"
+        placeholder={t("editor.sectionPlaceholder")}
         rows={1}
         className="mt-2 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
       />
@@ -450,29 +439,18 @@ function SectionBlock({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {(["multiple_choice", "true_false", "short_answer", "long_answer", "matching", "ordering"] as QuestionType[]).map((t) => (
+        {(["multiple_choice", "true_false", "short_answer", "long_answer", "matching", "ordering"] as QuestionType[]).map((tt) => (
           <button
-            key={t}
-            onClick={() => onAddQuestion(t)}
+            key={tt}
+            onClick={() => onAddQuestion(tt)}
             className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs hover:border-slate-400"
           >
-            + {labelForType(t)}
+            {t("qtype.add", { label: t(("qtype." + tt) as Parameters<typeof t>[0]) })}
           </button>
         ))}
       </div>
     </section>
   );
-}
-
-function labelForType(t: QuestionType) {
-  return {
-    multiple_choice: "Multiple choice",
-    true_false: "True/False",
-    short_answer: "Short answer",
-    long_answer: "Long answer",
-    matching: "Matching",
-    ordering: "Ordering",
-  }[t];
 }
 
 function defaultPayload(type: QuestionType): any {
@@ -526,24 +504,14 @@ function SelectField({
         className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1"
       >
         {options.map((o) => (
-          <option key={o.v} value={o.v}>
-            {o.label}
-          </option>
+          <option key={o.v} value={o.v}>{o.label}</option>
         ))}
       </select>
     </label>
   );
 }
 
-function Toggle({
-  label,
-  v,
-  onChange,
-}: {
-  label: string;
-  v: boolean;
-  onChange: (v: boolean) => void;
-}) {
+function Toggle({ label, v, onChange }: { label: string; v: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="flex items-center gap-2 text-sm">
       <input type="checkbox" checked={v} onChange={(e) => onChange(e.target.checked)} />
@@ -563,14 +531,10 @@ function ToggleRow({
   v: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const t = useT();
   return (
     <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 hover:border-slate-300">
-      <input
-        type="checkbox"
-        checked={v}
-        onChange={(e) => onChange(e.target.checked)}
-        className="mt-1"
-      />
+      <input type="checkbox" checked={v} onChange={(e) => onChange(e.target.checked)} className="mt-1" />
       <span className="flex-1">
         <span className="block text-sm font-medium text-slate-900">{label}</span>
         <span className="mt-0.5 block text-xs text-slate-600">{description}</span>
@@ -581,21 +545,13 @@ function ToggleRow({
           v ? "bg-ok-soft text-ok" : "bg-slate-200 text-slate-600",
         ].join(" ")}
       >
-        {v ? "On" : "Off"}
+        {v ? t("common.on") : t("common.off")}
       </span>
     </label>
   );
 }
 
-function PresetButton({
-  label,
-  hint,
-  onClick,
-}: {
-  label: string;
-  hint: string;
-  onClick: () => void;
-}) {
+function PresetButton({ label, hint, onClick }: { label: string; hint: string; onClick: () => void }) {
   return (
     <button
       type="button"

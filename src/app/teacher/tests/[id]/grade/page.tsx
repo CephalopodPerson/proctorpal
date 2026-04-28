@@ -1,14 +1,10 @@
 "use client";
 
-// Grading view: list submitted sessions, drill into one, walk question-by-
-// question. Auto-grade results are shown; short-answer "needs_review" and
-// every long-answer get a manual scoring input. Final publish runs the
-// aggregate calculation.
-
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { useT } from "@/lib/i18n";
 import type { Question } from "@/types";
 
 interface SessionLite {
@@ -30,6 +26,7 @@ interface AnswerRow {
 }
 
 export default function GradePage() {
+  const t = useT();
   const params = useParams<{ id: string }>();
   const testId = params.id;
   const [sessions, setSessions] = useState<SessionLite[]>([]);
@@ -39,11 +36,8 @@ export default function GradePage() {
 
   const refreshSessions = useCallback(async () => {
     const sb = getSupabaseBrowser();
-    const { data: assigns } = await sb
-      .from("test_assignments")
-      .select("id")
-      .eq("test_id", testId);
-    const ids = (assigns ?? []).map((a) => a.id);
+    const { data: assigns } = await sb.from("test_assignments").select("id").eq("test_id", testId);
+    const ids = ((assigns as any[]) ?? []).map((a) => a.id);
     if (ids.length === 0) return;
     const { data: rows } = await sb
       .from("sessions")
@@ -102,7 +96,7 @@ export default function GradePage() {
   }, []);
 
   async function saveManual(answerId: string, manualScore: number | null, manualComment: string | null) {
-    await fetch(`/api/teacher/answers/${answerId}/grade`, {
+    await fetch("/api/teacher/answers/" + answerId + "/grade", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ manualScore, manualComment }),
@@ -113,23 +107,23 @@ export default function GradePage() {
 
   async function publishAll() {
     setPublishMessage(null);
-    const r = await fetch(`/api/teacher/tests/${testId}/publish-grades`, { method: "POST" });
+    const r = await fetch("/api/teacher/tests/" + testId + "/publish-grades", { method: "POST" });
     const j = await r.json();
-    if (!r.ok) setPublishMessage(j.error ?? "Could not publish");
-    else setPublishMessage(`Published ${j.sessionsPublished} grade(s).`);
+    if (!r.ok) setPublishMessage(t("grading.publishFailed"));
+    else setPublishMessage(t("grading.publishedN", { n: j.sessionsPublished }));
   }
 
   return (
     <div className="grid gap-6 md:grid-cols-[260px_1fr]">
       <aside className="space-y-3">
-        <Link href={`/teacher/tests/${testId}`} className="text-sm text-slate-500 hover:underline">
-          ← Back to test
+        <Link href={"/teacher/tests/" + testId} className="text-sm text-slate-500 hover:underline">
+          ← {t("grading.backToTest")}
         </Link>
         <button
           onClick={publishAll}
           className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
         >
-          Publish grades
+          {t("grading.publishGrades")}
         </button>
         {publishMessage && <p className="text-sm">{publishMessage}</p>}
 
@@ -137,23 +131,21 @@ export default function GradePage() {
           {sessions.map((s) => (
             <li
               key={s.id}
-              className={`cursor-pointer border-b border-slate-100 p-3 last:border-0 ${
-                active === s.id ? "bg-slate-50" : ""
-              }`}
+              className={"cursor-pointer border-b border-slate-100 p-3 last:border-0 " + (active === s.id ? "bg-slate-50" : "")}
               onClick={() => loadSession(s.id)}
             >
               <div className="font-medium text-sm">{s.student.display_name}</div>
               <div className="mt-0.5 text-xs text-slate-500">
-                Score: {s.totalAuto.toFixed(1)} {s.needsReview > 0 && (
+                {t("grading.score")}: {s.totalAuto.toFixed(1)} {s.needsReview > 0 && (
                   <span className="ml-2 inline-block rounded bg-warn-soft px-1.5 py-0.5 text-warn">
-                    {s.needsReview} to review
+                    {t("grading.toReview", { n: s.needsReview })}
                   </span>
                 )}
               </div>
             </li>
           ))}
           {sessions.length === 0 && (
-            <li className="p-4 text-center text-sm text-slate-500">No submissions yet.</li>
+            <li className="p-4 text-center text-sm text-slate-500">{t("grading.noSubmissions")}</li>
           )}
         </ul>
       </aside>
@@ -161,12 +153,16 @@ export default function GradePage() {
       <main className="space-y-4">
         {!active && (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
-            Pick a student to start grading.
+            {t("grading.pickStudent")}
           </div>
         )}
         {active &&
           answers.map((a) => (
-            <AnswerCard key={a.session_question_id} a={a} onSave={(score, comment) => saveManual(a.session_question_id, score, comment)} />
+            <AnswerCard
+              key={a.session_question_id}
+              a={a}
+              onSave={(score, comment) => saveManual(a.session_question_id, score, comment)}
+            />
           ))}
       </main>
     </div>
@@ -180,6 +176,7 @@ function AnswerCard({
   a: AnswerRow;
   onSave: (score: number | null, comment: string | null) => void;
 }) {
+  const t = useT();
   const [score, setScore] = useState<string>(
     a.manual_score != null ? String(a.manual_score) : a.auto_score != null ? String(a.auto_score) : ""
   );
@@ -189,18 +186,20 @@ function AnswerCard({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{a.question.type.replace("_", " ")}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-500">
+        {t(("qtype." + a.question.type) as Parameters<typeof t>[0])}
+      </div>
       <div className="mt-1 font-medium whitespace-pre-wrap">{a.question.prompt}</div>
 
       <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm whitespace-pre-wrap">
-        <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Student response</div>
-        {renderAnswer(a)}
+        <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">{t("grading.studentResponse")}</div>
+        {renderAnswer(a, t)}
       </div>
 
       <div className="mt-3 flex items-center gap-3 text-sm">
-        <span className="text-slate-500">Auto:</span>
+        <span className="text-slate-500">{t("grading.auto")}:</span>
         <span>{a.auto_score ?? "—"} ({a.auto_status ?? "—"})</span>
-        <span className="text-slate-500 ml-4">Worth:</span>
+        <span className="text-slate-500 ml-4">{t("grading.worth")}:</span>
         <span>{a.question.points}</span>
       </div>
 
@@ -210,21 +209,21 @@ function AnswerCard({
             type="number"
             value={score}
             onChange={(e) => setScore(e.target.value)}
-            placeholder="Score"
+            placeholder={t("grading.scorePlaceholder")}
             className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
             step="0.5"
           />
           <input
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Comment (optional)"
+            placeholder={t("grading.commentPlaceholder")}
             className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
           />
           <button
             onClick={() => onSave(score === "" ? null : Number(score), comment || null)}
             className="rounded-md bg-slate-900 px-3 py-1 text-sm font-semibold text-white"
           >
-            Save
+            {t("common.save")}
           </button>
         </div>
       )}
@@ -232,16 +231,16 @@ function AnswerCard({
   );
 }
 
-function renderAnswer(a: AnswerRow) {
-  if (a.payload == null) return <span className="text-slate-400">No answer</span>;
+function renderAnswer(a: AnswerRow, t: ReturnType<typeof useT>) {
+  if (a.payload == null) return <span className="text-slate-400">{t("grading.noAnswer")}</span>;
   switch (a.question.type) {
     case "multiple_choice":
       return <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(a.payload, null, 2)}</pre>;
     case "true_false":
-      return <span>{a.payload.value === true ? "True" : a.payload.value === false ? "False" : "—"}</span>;
+      return <span>{a.payload.value === true ? t("common.yes") : a.payload.value === false ? t("common.no") : "—"}</span>;
     case "short_answer":
     case "long_answer":
-      return <span>{a.payload.value || <span className="text-slate-400">(empty)</span>}</span>;
+      return <span>{a.payload.value || <span className="text-slate-400">{t("grading.empty")}</span>}</span>;
     case "matching":
     case "ordering":
       return <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(a.payload, null, 2)}</pre>;

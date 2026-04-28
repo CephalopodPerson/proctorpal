@@ -1,19 +1,16 @@
 "use client";
 
-// Teacher preview mode - walk through a test as if you were a student.
-// No real session, no proctoring violations, no autosave, no submit.
-// Just lets you see how each question renders and interact with it.
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { QuestionRenderer } from "@/components/questions/QuestionRenderer";
 import { isTouchPrimary } from "@/lib/proctor/platform";
+import { useT } from "@/lib/i18n";
 import type { AnswerPayload, Question } from "@/types";
 
-
 export default function PreviewPage() {
+  const t = useT();
   const params = useParams<{ id: string }>();
   const testId = params.id;
   const [title, setTitle] = useState("");
@@ -42,7 +39,6 @@ export default function PreviewPage() {
       const qs = (bank?.questions ?? [])
         .slice()
         .sort((a: any, b: any) => a.position - b.position) as Question[];
-      // Honor the section's draw_count - take only that many for preview.
       const drawn = s.draw_count != null ? qs.slice(0, s.draw_count) : qs;
       for (const q of drawn) all.push(q);
     }
@@ -62,19 +58,17 @@ export default function PreviewPage() {
     [answers]
   );
 
-  if (loading) {
-    return <div className="px-6 py-12 text-slate-500">Loading preview...</div>;
-  }
+  if (loading) return <div className="px-6 py-12 text-slate-500">{t("common.loading")}</div>;
 
   if (questions.length === 0) {
     return (
       <div className="mx-auto max-w-md px-6 py-12 text-center">
-        <p className="text-slate-700">This test has no questions yet.</p>
+        <p className="text-slate-700">{t("preview.empty")}</p>
         <Link
-          href={`/teacher/tests/${testId}`}
+          href={"/teacher/tests/" + testId}
           className="mt-4 inline-block rounded-lg bg-slate-900 px-4 py-2 text-white"
         >
-          Back to editor
+          {t("preview.backToEditor")}
         </Link>
       </div>
     );
@@ -83,24 +77,24 @@ export default function PreviewPage() {
   return (
     <div>
       <div className="bg-warn-soft border-b border-warn/30 px-6 py-2 text-sm text-warn flex items-center justify-between">
-        <span><strong>Preview mode</strong> &mdash; nothing is saved or recorded. Fullscreen, focus detection, and copy/paste blocking are off.</span>
+        <span>{t("preview.banner")}</span>
         <Link
-          href={`/teacher/tests/${testId}`}
+          href={"/teacher/tests/" + testId}
           className="rounded-md border border-warn/40 bg-white px-3 py-1 text-xs font-medium text-warn hover:bg-warn-soft"
         >
-          Exit preview
+          {t("preview.exit")}
         </Link>
       </div>
 
       <div className="mx-auto max-w-3xl px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs uppercase tracking-wide text-slate-500">Test (preview)</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">{t("preview.testPreview")}</div>
             <div className="text-lg font-semibold">{title}</div>
           </div>
           <div className="text-right">
             <div className="text-xs uppercase tracking-wide text-slate-500">
-              Question {idx + 1}/{questions.length}
+              {t("runner.questionOf", { n: idx + 1, total: questions.length })}
             </div>
           </div>
         </div>
@@ -145,21 +139,21 @@ export default function PreviewPage() {
               disabled={idx === 0}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 disabled:opacity-50"
             >
-              &larr; Previous
+              &larr; {t("common.previous")}
             </button>
             {isLast ? (
               <Link
-                href={`/teacher/tests/${testId}`}
+                href={"/teacher/tests/" + testId}
                 className="rounded-lg bg-slate-900 px-6 py-2 text-white font-semibold"
               >
-                End preview
+                {t("preview.endPreview")}
               </Link>
             ) : (
               <button
                 onClick={() => setIdx((i) => Math.min(questions.length - 1, i + 1))}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-white font-semibold"
               >
-                Next &rarr;
+                {t("common.next")} &rarr;
               </button>
             )}
           </div>

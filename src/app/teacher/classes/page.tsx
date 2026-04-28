@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { useT } from "@/lib/i18n";
 
 interface ClassRow {
   id: string;
@@ -11,6 +12,7 @@ interface ClassRow {
 }
 
 export default function ClassesPage() {
+  const t = useT();
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,9 +24,8 @@ export default function ClassesPage() {
       setClasses([]);
       return;
     }
-    // Pull counts in parallel.
     const counts = await Promise.all(
-      list.map(async (c) => {
+      list.map(async (c: { id: string; name: string }) => {
         const { count } = await sb
           .from("students")
           .select("id", { count: "exact", head: true })
@@ -44,9 +45,7 @@ export default function ClassesPage() {
     if (!name.trim()) return;
     setLoading(true);
     const sb = getSupabaseBrowser();
-    const {
-      data: { user },
-    } = await sb.auth.getUser();
+    const { data: { user } } = await sb.auth.getUser();
     if (!user) return;
     await sb.from("classes").insert({ name: name.trim(), teacher_id: user.id });
     setName("");
@@ -56,34 +55,36 @@ export default function ClassesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Classes</h1>
+      <h1 className="text-2xl font-bold">{t("classes.title")}</h1>
 
       <form onSubmit={create} className="flex gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2"
-          placeholder="New class name (e.g., Period 3 Biology)"
+          placeholder={t("classes.newPlaceholder")}
         />
         <button
           disabled={loading}
           className="rounded-lg bg-slate-900 px-4 py-2 text-white font-semibold disabled:opacity-60"
         >
-          Add
+          {t("common.add")}
         </button>
       </form>
 
       <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
         {classes.map((c) => (
           <li key={c.id} className="flex items-center justify-between p-4">
-            <Link href={`/teacher/classes/${c.id}`} className="font-medium hover:underline">
+            <Link href={"/teacher/classes/" + c.id} className="font-medium hover:underline">
               {c.name}
             </Link>
-            <span className="text-sm text-slate-500">{c.studentCount ?? 0} students</span>
+            <span className="text-sm text-slate-500">
+              {t("classes.studentsCount", { n: c.studentCount ?? 0 })}
+            </span>
           </li>
         ))}
         {classes.length === 0 && (
-          <li className="p-6 text-center text-sm text-slate-500">No classes yet.</li>
+          <li className="p-6 text-center text-sm text-slate-500">{t("classes.empty")}</li>
         )}
       </ul>
     </div>

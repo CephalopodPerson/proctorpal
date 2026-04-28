@@ -3,6 +3,7 @@
 // Inline question editor. Switches form by question type.
 // Saves on blur via onChange. Parent owns the data.
 
+import { useT } from "@/lib/i18n";
 import type {
   MultipleChoicePayload,
   TrueFalsePayload,
@@ -34,6 +35,7 @@ export function QuestionEditor({
   onChange: (next: DraftQuestion) => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between gap-2">
@@ -42,12 +44,12 @@ export function QuestionEditor({
           onChange={(e) => onChange({ ...q, type: e.target.value as QuestionType, payload: defaultPayload(e.target.value as QuestionType) })}
           className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
         >
-          <option value="multiple_choice">Multiple choice</option>
-          <option value="true_false">True / False</option>
-          <option value="short_answer">Short answer</option>
-          <option value="long_answer">Long answer</option>
-          <option value="matching">Matching</option>
-          <option value="ordering">Ordering</option>
+          <option value="multiple_choice">{t("qtype.multiple_choice")}</option>
+          <option value="true_false">{t("qtype.true_false")}</option>
+          <option value="short_answer">{t("qtype.short_answer")}</option>
+          <option value="long_answer">{t("qtype.long_answer")}</option>
+          <option value="matching">{t("qtype.matching")}</option>
+          <option value="ordering">{t("qtype.ordering")}</option>
         </select>
         <input
           type="number"
@@ -58,14 +60,14 @@ export function QuestionEditor({
           step={0.5}
         />
         <button onClick={onDelete} className="text-xs text-violation hover:underline">
-          Delete
+          {t("common.delete")}
         </button>
       </div>
 
       <textarea
         value={q.prompt}
         onChange={(e) => onChange({ ...q, prompt: e.target.value })}
-        placeholder="Question prompt"
+        placeholder={t("qedit.promptPlaceholder")}
         className="mt-3 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm"
         rows={2}
       />
@@ -74,20 +76,18 @@ export function QuestionEditor({
         <input
           value={q.image_url ?? ""}
           onChange={(e) => onChange({ ...q, image_url: e.target.value || null })}
-          placeholder="Image URL (optional)"
+          placeholder={t("qedit.imagePlaceholder")}
           className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
         />
         <input
           value={q.youtube_id ?? ""}
           onChange={(e) => onChange({ ...q, youtube_id: e.target.value || null })}
-          placeholder="YouTube video ID (optional)"
+          placeholder={t("qedit.youtubePlaceholder")}
           className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
         />
       </div>
 
-      <div className="mt-3">
-        {renderPayloadEditor(q, onChange)}
-      </div>
+      <div className="mt-3">{renderPayloadEditor(q, onChange)}</div>
     </div>
   );
 }
@@ -128,6 +128,7 @@ function defaultPayload(type: QuestionType): any {
 
 // ---------- Multiple choice ----------
 function MCEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuestion) => void }) {
+  const t = useT();
   const p = q.payload as MultipleChoicePayload;
   const update = (next: MultipleChoicePayload) => onChange({ ...q, payload: next });
   const correct = new Set(p.correct);
@@ -139,7 +140,7 @@ function MCEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuesti
           checked={p.multi_select}
           onChange={(e) => update({ ...p, multi_select: e.target.checked, correct: [] })}
         />
-        Allow multiple correct answers
+        {t("qedit.allowMultiCorrect")}
       </label>
       {p.options.map((opt, i) => (
         <div key={opt.id} className="flex items-center gap-2">
@@ -165,7 +166,7 @@ function MCEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuesti
               update({ ...p, options: next });
             }}
             className="flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
-            placeholder={`Option ${i + 1}`}
+            placeholder={t("qedit.option", { n: i + 1 })}
           />
           <button
             onClick={() => update({ ...p, options: p.options.filter((o) => o.id !== opt.id), correct: p.correct.filter((c) => c !== opt.id) })}
@@ -182,7 +183,7 @@ function MCEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuesti
         }}
         className="text-xs text-slate-600 hover:underline"
       >
-        + Add option
+        {t("qedit.addOption")}
       </button>
     </div>
   );
@@ -190,17 +191,18 @@ function MCEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuesti
 
 // ---------- True/False ----------
 function TFEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuestion) => void }) {
+  const t = useT();
   const p = q.payload as TrueFalsePayload;
   return (
     <label className="text-sm">
-      Correct answer:{" "}
+      {t("qedit.correctAnswer")}:{" "}
       <select
         value={p.correct ? "true" : "false"}
         onChange={(e) => onChange({ ...q, payload: { correct: e.target.value === "true" } })}
         className="ml-2 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
       >
-        <option value="true">True</option>
-        <option value="false">False</option>
+        <option value="true">{t("common.yes")}</option>
+        <option value="false">{t("common.no")}</option>
       </select>
     </label>
   );
@@ -208,11 +210,12 @@ function TFEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuesti
 
 // ---------- Short answer ----------
 function ShortEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuestion) => void }) {
+  const t = useT();
   const p = q.payload as ShortAnswerPayload;
   const update = (next: ShortAnswerPayload) => onChange({ ...q, payload: next });
   return (
     <div className="space-y-2">
-      <div className="text-xs text-slate-600">Accepted answers (any match earns full credit):</div>
+      <div className="text-xs text-slate-600">{t("qedit.acceptedAnswers")}</div>
       {p.accepts.map((a, i) => (
         <div key={i} className="flex items-center gap-2">
           <input
@@ -233,10 +236,10 @@ function ShortEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQue
             }}
             className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
           >
-            <option value="exact">Exact</option>
-            <option value="ci">Case-insensitive</option>
-            <option value="ws">Whitespace-tolerant</option>
-            <option value="contains">Contains</option>
+            <option value="exact">{t("qedit.modeExact")}</option>
+            <option value="ci">{t("qedit.modeCi")}</option>
+            <option value="ws">{t("qedit.modeWs")}</option>
+            <option value="contains">{t("qedit.modeContains")}</option>
           </select>
           <button
             onClick={() => update({ ...p, accepts: p.accepts.filter((_, j) => j !== i) })}
@@ -250,10 +253,10 @@ function ShortEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQue
         onClick={() => update({ ...p, accepts: [...p.accepts, { value: "", mode: "ci" }] })}
         className="text-xs text-slate-600 hover:underline"
       >
-        + Add accepted answer
+        {t("qedit.addAccepted")}
       </button>
       <label className="block text-xs text-slate-600">
-        Numeric tolerance (optional, ± of accepted numeric values):
+        {t("qedit.tolerance")}
         <input
           type="number"
           value={p.tolerance ?? ""}
@@ -270,10 +273,11 @@ function ShortEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQue
 
 // ---------- Long answer ----------
 function LongEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuestion) => void }) {
+  const t = useT();
   const p = q.payload as LongAnswerPayload;
   return (
     <div>
-      <div className="text-xs text-slate-600 mb-1">Rubric (visible only to you when grading):</div>
+      <div className="text-xs text-slate-600 mb-1">{t("qedit.rubric")}</div>
       <textarea
         value={p.rubric ?? ""}
         onChange={(e) => onChange({ ...q, payload: { rubric: e.target.value } })}
@@ -286,30 +290,31 @@ function LongEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQues
 
 // ---------- Matching ----------
 function MatchEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuestion) => void }) {
+  const t = useT();
   const p = q.payload as MatchingPayload;
   const update = (next: MatchingPayload) => onChange({ ...q, payload: next });
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Side
-        label="Left items"
+        label={t("qedit.leftItems")}
         items={p.left}
         onAdd={() => update({ ...p, left: [...p.left, { id: rand(), text: "" }] })}
         onChange={(items) => update({ ...p, left: items })}
       />
       <Side
-        label="Right items"
+        label={t("qedit.rightItems")}
         items={p.right}
         onAdd={() => update({ ...p, right: [...p.right, { id: rand(), text: "" }] })}
         onChange={(items) => update({ ...p, right: items })}
       />
       <div className="sm:col-span-2">
-        <div className="text-xs text-slate-600 mb-1">Correct pairs (pick one right item per left item):</div>
+        <div className="text-xs text-slate-600 mb-1">{t("qedit.correctPairs")}</div>
         <div className="space-y-2">
           {p.left.map((l) => {
             const pair = p.pairs.find(([lid]) => lid === l.id);
             return (
               <div key={l.id} className="flex items-center gap-2">
-                <span className="flex-1 truncate text-sm">{l.text || "(unnamed)"}</span>
+                <span className="flex-1 truncate text-sm">{l.text || t("qedit.unnamed")}</span>
                 <span className="text-slate-400">→</span>
                 <select
                   value={pair?.[1] ?? ""}
@@ -320,11 +325,9 @@ function MatchEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQue
                   }}
                   className="flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
                 >
-                  <option value="">— pick —</option>
+                  <option value="">{t("qedit.pickOne")}</option>
                   {p.right.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.text || "(unnamed)"}
-                    </option>
+                    <option key={r.id} value={r.id}>{r.text || t("qedit.unnamed")}</option>
                   ))}
                 </select>
               </div>
@@ -347,6 +350,7 @@ function Side({
   onAdd: () => void;
   onChange: (items: { id: string; text: string }[]) => void;
 }) {
+  const t = useT();
   return (
     <div>
       <div className="text-xs text-slate-600 mb-1">{label}</div>
@@ -372,7 +376,7 @@ function Side({
         ))}
       </div>
       <button onClick={onAdd} className="mt-1 text-xs text-slate-600 hover:underline">
-        + Add
+        {t("common.add")}
       </button>
     </div>
   );
@@ -380,11 +384,12 @@ function Side({
 
 // ---------- Ordering ----------
 function OrderEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQuestion) => void }) {
+  const t = useT();
   const p = q.payload as OrderingPayload;
   const update = (next: OrderingPayload) => onChange({ ...q, payload: next });
   return (
     <div>
-      <div className="text-xs text-slate-600 mb-1">Items in correct order (top = first):</div>
+      <div className="text-xs text-slate-600 mb-1">{t("qedit.itemsInOrder")}</div>
       <div className="space-y-1">
         {p.items.map((item, i) => (
           <div key={item.id} className="flex items-center gap-1">
@@ -431,7 +436,7 @@ function OrderEditor({ q, onChange }: { q: DraftQuestion; onChange: (n: DraftQue
         }}
         className="mt-1 text-xs text-slate-600 hover:underline"
       >
-        + Add item
+        {t("qedit.addItem")}
       </button>
     </div>
   );
@@ -446,5 +451,4 @@ function swap<T>(arr: T[], i: number, j: number): T[] {
   return next;
 }
 
-// Re-export the Question type for convenience.
 export type { Question };

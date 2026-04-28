@@ -1,13 +1,11 @@
 "use client";
 
-// Live monitor — realtime view of every active session for this test,
-// plus per-student controls (admit, pause, resume, +time, release device).
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { formatDuration } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 interface SessionRow {
   id: string;
@@ -23,6 +21,7 @@ interface SessionRow {
 }
 
 export default function MonitorPage() {
+  const t = useT();
   const params = useParams<{ id: string }>();
   const testId = params.id;
   const [rows, setRows] = useState<SessionRow[]>([]);
@@ -30,15 +29,14 @@ export default function MonitorPage() {
 
   const refresh = useCallback(async () => {
     const sb = getSupabaseBrowser();
-    // Pull every session for every assignment of this test.
     const { data: assignments } = await sb
       .from("test_assignments")
       .select("id, access_code, is_open")
       .eq("test_id", testId)
       .eq("is_open", true);
-    if (assignments && assignments.length) setAccessCode(assignments[0].access_code);
+    if (assignments && assignments.length) setAccessCode((assignments as any[])[0].access_code);
 
-    const ids = (assignments ?? []).map((a) => a.id);
+    const ids = ((assignments as any[]) ?? []).map((a) => a.id);
     if (ids.length === 0) {
       setRows([]);
       return;
@@ -51,27 +49,19 @@ export default function MonitorPage() {
 
     const out: SessionRow[] = [];
     for (const s of (sessions as any[]) ?? []) {
-      const [{ count: vCount }, { data: sqs }, { data: ans }] = await Promise.all([
-        sb
-          .from("violations")
-          .select("id", { count: "exact", head: true })
-          .eq("session_id", s.id),
+      const [{ count: vCount }, { data: sqs }] = await Promise.all([
+        sb.from("violations").select("id", { count: "exact", head: true }).eq("session_id", s.id),
         sb.from("session_questions").select("id").eq("session_id", s.id),
-        sb
-          .from("answers")
-          .select("session_question_id, payload")
-          .in("session_question_id", []),
       ]);
-      const sqIds = (sqs ?? []).map((x: any) => x.id);
+      const sqIds = ((sqs as any[]) ?? []).map((x: any) => x.id);
       let answered = 0;
       if (sqIds.length) {
         const { data: a2 } = await sb
           .from("answers")
           .select("session_question_id, payload")
           .in("session_question_id", sqIds);
-        answered = (a2 ?? []).filter((a: any) => a.payload != null).length;
+        answered = ((a2 as any[]) ?? []).filter((a: any) => a.payload != null).length;
       }
-      void ans;
       out.push({
         id: s.id,
         status: s.status,
@@ -92,12 +82,10 @@ export default function MonitorPage() {
     refresh();
   }, [refresh]);
 
-  // Realtime: refresh on any change to sessions/violations/answers
-  // for any of our assignments.
   useEffect(() => {
     const sb = getSupabaseBrowser();
     const ch = sb
-      .channel(`monitor:${testId}`)
+      .channel("monitor:" + testId)
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "answers" }, () => refresh())
@@ -108,7 +96,7 @@ export default function MonitorPage() {
   }, [testId, refresh]);
 
   async function act(sessionId: string, action: string, value?: number) {
-    await fetch(`/api/teacher/sessions/${sessionId}/actions`, {
+    await fetch("/api/teacher/sessions/" + sessionId + "/actions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, value }),
@@ -130,33 +118,33 @@ export default function MonitorPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <Link href={`/teacher/tests/${testId}`} className="text-sm text-slate-500 hover:underline">
-          ← Back to test
+        <Link href={"/teacher/tests/" + testId} className="text-sm text-slate-500 hover:underline">
+          ← {t("monitor.backToTest")}
         </Link>
         {accessCode && (
           <div className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-mono text-lg">
-            Access code: <span className="font-bold tracking-widest">{accessCode}</span>
+            {t("monitor.accessCode")}: <span className="font-bold tracking-widest">{accessCode}</span>
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-4 gap-3">
-        <Stat label="Waiting" value={counts.waiting} />
-        <Stat label="Active" value={counts.active} />
-        <Stat label="Paused" value={counts.paused} />
-        <Stat label="Submitted" value={counts.submitted} />
+        <Stat label={t("monitor.waiting")} value={counts.waiting} />
+        <Stat label={t("monitor.active")} value={counts.active} />
+        <Stat label={t("monitor.paused")} value={counts.paused} />
+        <Stat label={t("monitor.submitted")} value={counts.submitted} />
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="p-3">Student</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Time left</th>
-              <th className="p-3">Progress</th>
-              <th className="p-3">Violations</th>
-              <th className="p-3 text-right">Actions</th>
+              <th className="p-3">{t("monitor.colStudent")}</th>
+              <th className="p-3">{t("monitor.colStatus")}</th>
+              <th className="p-3">{t("monitor.colTimeLeft")}</th>
+              <th className="p-3">{t("monitor.colProgress")}</th>
+              <th className="p-3">{t("monitor.colViolations")}</th>
+              <th className="p-3 text-right">{t("monitor.colActions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -166,9 +154,7 @@ export default function MonitorPage() {
                   <div className="font-medium">{r.student?.display_name}</div>
                   <div className="font-mono text-xs text-slate-500">{r.student?.student_id}</div>
                 </td>
-                <td className="p-3">
-                  <StatusBadge s={r.status} />
-                </td>
+                <td className="p-3"><StatusBadge s={r.status} /></td>
                 <td className="p-3 font-mono">
                   {r.status === "in_progress" || r.status === "paused"
                     ? formatDuration(liveRemaining(r))
@@ -176,9 +162,7 @@ export default function MonitorPage() {
                 </td>
                 <td className="p-3">
                   {r.total > 0 ? (
-                    <span>
-                      {r.answered}/{r.total}
-                    </span>
+                    <span>{r.answered}/{r.total}</span>
                   ) : (
                     "—"
                   )}
@@ -191,14 +175,14 @@ export default function MonitorPage() {
                 <td className="p-3 text-right">
                   <div className="inline-flex flex-wrap justify-end gap-1">
                     {r.status === "pending_admit" && (
-                      <Btn onClick={() => act(r.id, "admit")}>Admit</Btn>
+                      <Btn onClick={() => act(r.id, "admit")}>{t("monitor.admit")}</Btn>
                     )}
                     {r.status === "in_progress" && (
-                      <Btn onClick={() => act(r.id, "pause")}>Pause</Btn>
+                      <Btn onClick={() => act(r.id, "pause")}>{t("monitor.pause")}</Btn>
                     )}
                     {r.status === "paused" && (
                       <Btn onClick={() => act(r.id, "resume")} variant="primary">
-                        Resume
+                        {t("monitor.resume")}
                       </Btn>
                     )}
                     {(r.status === "in_progress" || r.status === "paused") && (
@@ -207,7 +191,7 @@ export default function MonitorPage() {
                         <Btn onClick={() => act(r.id, "add_time", 300)}>+5m</Btn>
                       </>
                     )}
-                    <Btn onClick={() => act(r.id, "release_device")}>Unlock device</Btn>
+                    <Btn onClick={() => act(r.id, "release_device")}>{t("monitor.unlockDevice")}</Btn>
                   </div>
                 </td>
               </tr>
@@ -215,7 +199,7 @@ export default function MonitorPage() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-6 text-center text-sm text-slate-500">
-                  No sessions yet. Share the access code with your class.
+                  {t("monitor.empty")}
                 </td>
               </tr>
             )}
@@ -236,6 +220,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 function StatusBadge({ s }: { s: string }) {
+  const t = useT();
   const map: Record<string, string> = {
     in_progress: "bg-ok-soft text-ok",
     paused: "bg-warn-soft text-warn",
@@ -245,8 +230,8 @@ function StatusBadge({ s }: { s: string }) {
     voided: "bg-violation-soft text-violation",
   };
   return (
-    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${map[s] ?? "bg-slate-100"}`}>
-      {s.replace("_", " ")}
+    <span className={"inline-block rounded px-2 py-0.5 text-xs font-medium " + (map[s] ?? "bg-slate-100")}>
+      {t(("monitor.status." + s) as Parameters<typeof t>[0])}
     </span>
   );
 }
@@ -275,7 +260,7 @@ function Btn({
   );
 }
 
-function liveRemaining(r: { started_at: string | null; duration_seconds_remaining: number; paused_at: string | null; status: string }) {
+function liveRemaining(r: { started_at: string | null; duration_seconds_remaining: number; status: string }) {
   if (r.status !== "in_progress" || !r.started_at) return r.duration_seconds_remaining;
   const elapsed = (Date.now() - new Date(r.started_at).getTime()) / 1000;
   return Math.max(0, Math.floor(r.duration_seconds_remaining - elapsed));
