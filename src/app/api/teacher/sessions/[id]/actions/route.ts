@@ -14,8 +14,9 @@ const Body = z.object({
   value: z.number().optional(),
 });
 
-export async function POST(req: Request, ctx: { params: { id: string } }) {
-  const sb = getSupabaseServer();
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params;
+  const sb = await getSupabaseServer();
   const {
     data: { user },
   } = await sb.auth.getUser();
@@ -33,7 +34,7 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     .select(
       "*, test_assignments(test_id, tests(id, teacher_id, duration_seconds))"
     )
-    .eq("id", ctx.params.id)
+    .eq("id", params.id)
     .single();
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const test = (row as any).test_assignments?.tests;

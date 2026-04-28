@@ -7,7 +7,8 @@ import { verifySessionToken } from "./session-token";
 export const SESSION_COOKIE = "pt_session";
 
 export async function getStudentSessionContext() {
-  const token = cookies().get(SESSION_COOKIE)?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const payload = await verifySessionToken(token);
   if (!payload) return null;

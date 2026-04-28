@@ -5,23 +5,28 @@
 // subsequent requests to a single session_id. The token is HMAC-signed
 // with SESSION_SIGNING_SECRET and stored in an httpOnly cookie.
 //
-// The Edge runtime is supported because we use Web Crypto.
+// Edge runtime supported - we use Web Crypto + atob/btoa, not Node Buffer.
 
 const ENC = new TextEncoder();
 const DEC = new TextDecoder();
 
 function b64urlEncode(bytes: Uint8Array): string {
-  return Buffer.from(bytes)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function b64urlDecode(s: string): Uint8Array {
+// Returns a Uint8Array whose underlying buffer is concretely an ArrayBuffer
+// (not SharedArrayBuffer / ArrayBufferLike), which is what Web Crypto's
+// BufferSource parameter requires under TypeScript 5.7+.
+function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   s = s.replace(/-/g, "+").replace(/_/g, "/");
   while (s.length % 4) s += "=";
-  return new Uint8Array(Buffer.from(s, "base64"));
+  const bin = atob(s);
+  const buffer = new ArrayBuffer(bin.length);
+  const out = new Uint8Array(buffer);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 async function key() {
@@ -48,7 +53,7 @@ export async function signSessionToken(payload: SessionTokenPayload): Promise<st
   const json = JSON.stringify(payload);
   const body = b64urlEncode(ENC.encode(json));
   const sig = await crypto.subtle.sign("HMAC", await key(), ENC.encode(body));
-  return `${body}.${b64urlEncode(new Uint8Array(sig))}`;
+  return body + "." + b64urlEncode(new Uint8Array(sig));
 }
 
 export async function verifySessionToken(
@@ -77,7 +82,7 @@ export function deviceFingerprintFromHeaders(
   ip: string
 ): string {
   // Cheap, stable enough fingerprint. We're not trying to defeat a
-  // determined attacker — we only want to detect "different machine".
+  // determined attacker - we only want to detect "different machine".
   // The real IP comes from x-forwarded-for in production.
-  return `${userAgent}::${ip}`;
+  return userAgent + "::" + ip;
 }

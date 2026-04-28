@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    // Optimize for the kind of realtime work the dashboard does
-    serverActions: { bodySizeLimit: "2mb" },
+  // serverActions moved to top-level in Next 15.
+  serverActions: {
+    bodySizeLimit: "2mb",
   },
   images: {
     // Question media may be uploaded to Supabase storage; set the host you use.

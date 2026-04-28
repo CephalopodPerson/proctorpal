@@ -11,8 +11,9 @@ const Body = z.object({
   manualComment: z.string().optional(),
 });
 
-export async function PATCH(req: Request, ctx: { params: { id: string } }) {
-  const sb = getSupabaseServer();
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params;
+  const sb = await getSupabaseServer();
   const {
     data: { user },
   } = await sb.auth.getUser();
@@ -28,7 +29,7 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
   const { data: row } = await admin
     .from("answers")
     .select("session_question_id, session_questions(session_id, sessions(test_assignments(tests(teacher_id))))")
-    .eq("session_question_id", ctx.params.id)
+    .eq("session_question_id", params.id)
     .single();
   const teacherId = (row as any)?.session_questions?.sessions?.test_assignments?.tests?.teacher_id;
   if (!row || teacherId !== user.id)
@@ -42,7 +43,7 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
       graded_by: user.id,
       graded_at: new Date().toISOString(),
     })
-    .eq("session_question_id", ctx.params.id);
+    .eq("session_question_id", params.id);
 
   return NextResponse.json({ ok: true });
 }

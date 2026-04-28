@@ -5,8 +5,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer, getSupabaseAdmin } from "@/lib/supabase/server";
 
-export async function POST(_req: Request, ctx: { params: { id: string } }) {
-  const sb = getSupabaseServer();
+export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params;
+  const sb = await getSupabaseServer();
   const {
     data: { user },
   } = await sb.auth.getUser();
@@ -18,7 +19,7 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
   const { data: test } = await admin
     .from("tests")
     .select("id,teacher_id")
-    .eq("id", ctx.params.id)
+    .eq("id", params.id)
     .single();
   if (!test || test.teacher_id !== user.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -27,7 +28,7 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
   const { data: sessions } = await admin
     .from("sessions")
     .select("id, status, test_assignments!inner(test_id)")
-    .eq("test_assignments.test_id", ctx.params.id)
+    .eq("test_assignments.test_id", params.id)
     .in("status", ["submitted", "auto_submitted"]);
 
   let count = 0;

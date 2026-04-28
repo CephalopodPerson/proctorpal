@@ -10,8 +10,9 @@ import { generateAccessCode } from "@/lib/utils";
 
 const Body = z.object({ classId: z.string().uuid() });
 
-export async function POST(req: Request, ctx: { params: { id: string } }) {
-  const sb = getSupabaseServer();
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params;
+  const sb = await getSupabaseServer();
   const {
     data: { user },
   } = await sb.auth.getUser();
@@ -25,7 +26,7 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
   const { data: test } = await sb
     .from("tests")
     .select("id,teacher_id")
-    .eq("id", ctx.params.id)
+    .eq("id", params.id)
     .single();
   if (!test || test.teacher_id !== user.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -45,7 +46,7 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     const { data: ins, error } = await sb
       .from("test_assignments")
       .insert({
-        test_id: ctx.params.id,
+        test_id: params.id,
         class_id: parse.data.classId,
         access_code: code,
         is_open: true,
@@ -53,7 +54,7 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
       .select("*")
       .single();
     if (!error && ins) {
-      await sb.from("tests").update({ status: "published" }).eq("id", ctx.params.id);
+      await sb.from("tests").update({ status: "published" }).eq("id", params.id);
       return NextResponse.json({ assignmentId: ins.id, accessCode: code });
     }
   }

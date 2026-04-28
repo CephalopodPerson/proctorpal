@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getSupabaseServer } from "@/lib/supabase/server";
 
 export default async function TeacherDashboard() {
-  const sb = getSupabaseServer();
+  const sb = await getSupabaseServer();
   const [{ data: classes }, { data: tests }] = await Promise.all([
     sb.from("classes").select("id,name").order("created_at", { ascending: false }).limit(5),
     sb.from("tests").select("id,title,status,updated_at").order("updated_at", { ascending: false }).limit(5),

@@ -3,7 +3,7 @@ import { getSupabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
 export default async function TeacherLayout({ children }: { children: React.ReactNode }) {
-  const sb = getSupabaseServer();
+  const sb = await getSupabaseServer();
   const {
     data: { user },
   } = await sb.auth.getUser();
