@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Block selection on the test surface so students can't grab the question text. */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Hide native input chrome on touch devices when we're showing our own keyboard. */
+.virtual-only-input {
+  caret-color: #2563eb;
+}
+.virtual-only-input::selection { background: transparent; }
